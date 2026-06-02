@@ -1,95 +1,95 @@
-# 落地到你自己的项目
+# Adopt it in your project
 
-四步把这套协议接进任何项目、任何 AI 工具。
+Four steps to wire this protocol into any project, any AI tool.
 
 ---
 
-## Step 1 — 把协议放进项目
+## Step 1 — Put the protocol in your repo
 
 ```
 your-project/
 ├─ docs/
-│  └─ proof-of-done.md      ← 复制本仓库 PROTOCOL.md (或直接引用本仓库链接)
-├─ raw/                     ← 用户给的原始数据归档 (见 R4)
-└─ <AI 规则文件>            ← Step 3 的触发词写这里
+│  └─ proof-of-done.md      ← copy this repo's PROTOCOL.md (or link to this repo)
+├─ raw/                     ← archive of user-provided source data (see R4)
+└─ <AI rules file>          ← the trigger word goes here (Step 3)
 ```
 
-你可以直接 `git submodule` 引入本仓库，或把 `PROTOCOL.md` + `IRON-LAWS.md` 复制进 `docs/`。推荐复制 —— 因为你会基于自己项目的踩坑**持续往 IRON-LAWS 里加铁律**（Step 4）。
+You can `git submodule` this repo, or copy `PROTOCOL.md` + `IRON-LAWS.md` into `docs/`. Copying is recommended — you'll keep **appending your own project's hard-won laws to IRON-LAWS** (Step 4).
 
 ---
 
-## Step 2 — 把通用步骤映射到你的工具栈
+## Step 2 — Map the generic steps to your stack
 
-协议里的步骤是抽象的，照下表填成你公司的具体命令：
+The steps in the protocol are abstract. Fill them in with your team's concrete commands:
 
-| 通用步骤 | 可能用的工具（任选） |
+| Generic step | Tools you might use (pick any) |
 |---------|-------------------|
-| **部署** | `docker compose up` / `kubectl rollout` / Helm upgrade / Vercel·Netlify deploy / PaaS push |
-| **重启服务** | `docker compose restart` / `kubectl delete pod` / `systemctl restart` / 平台重启 |
-| **反向代理 reload** | `nginx -s reload` / Ingress reload / ALB 刷新 / API Gateway redeploy |
-| **环境内调函数** | `docker exec` / `kubectl exec` / SSH / serverless invoke |
-| **查日志** | `docker compose logs` / `kubectl logs` / Loki / CloudWatch / Datadog |
-| **查数据库** | `docker exec psql` / 云控制台 / DBeaver / TablePlus |
-| **邮件验证** | 收件人确认 / IMAP 收信 / SendGrid·SES·Postmark dashboard |
-| **通知验证** | Slack / 钉钉 / 企业微信 回执或机器人确认 |
-| **独立 AI 审查** | 第二个 AI CLI（Codex / Claude / Gemini / Aider …） |
-| **浏览器实测** | Playwright / Cypress / Puppeteer / 真浏览器 + DevTools |
-| **自签证书绕过** | Chrome 证书页输入 `thisisunsafe`；或给内网域名配可信证书 |
+| **Deploy** | `docker compose up` / `kubectl rollout` / Helm upgrade / Vercel·Netlify deploy / PaaS push |
+| **Restart service** | `docker compose restart` / `kubectl delete pod` / `systemctl restart` / platform restart |
+| **Reverse-proxy reload** | `nginx -s reload` / Ingress reload / ALB refresh / API Gateway redeploy |
+| **Call a function in the env** | `docker exec` / `kubectl exec` / SSH / serverless invoke |
+| **Query logs** | `docker compose logs` / `kubectl logs` / Loki / CloudWatch / Datadog |
+| **Query the database** | `docker exec psql` / cloud console / DBeaver / TablePlus |
+| **Verify email** | recipient confirmation / IMAP fetch / SendGrid·SES·Postmark dashboard |
+| **Verify notification** | Slack / Teams / chat receipt or bot confirmation |
+| **Independent AI review** | a second AI CLI (Codex / Claude / Gemini / Aider …) |
+| **Browser testing** | Playwright / Cypress / Puppeteer / real browser + DevTools |
+| **Bypass self-signed cert** | type `thisisunsafe` on Chrome's cert page; or give the internal domain a trusted cert |
 
-把这张表填好放进 `docs/proof-of-done.md` 顶部，AI 跑流程时就知道每一步在你这儿具体怎么做。
+Put this filled-in table at the top of your `docs/proof-of-done.md` so the agent knows how each step maps to your environment.
 
 ---
 
-## Step 3 — 把触发词写进 AI 规则文件
+## Step 3 — Wire the trigger word into your AI rules file
 
-各 AI 工具的规则文件位置：
+Where each AI tool reads its rules:
 
-| AI 工具 | 规则文件 |
+| AI tool | Rules file |
 |--------|---------|
-| Claude Code | `CLAUDE.md`（项目根） |
+| Claude Code | `CLAUDE.md` (repo root) |
 | Cursor | `.cursorrules` |
 | Cline | `.clinerules` |
-| Aider | `.aider.conf.yml` 或 `CONVENTIONS.md` |
+| Aider | `.aider.conf.yml` or `CONVENTIONS.md` |
 | GitHub Copilot | `.github/copilot-instructions.md` |
-| Continue | `.continue/config.json`（system prompt） |
-| Codex CLI | `AGENTS.md` 或 `CODEX.md` |
+| Continue | `.continue/config.json` (system prompt) |
+| Codex CLI | `AGENTS.md` or `CODEX.md` |
 
-把 [templates/trigger-rule.md](templates/trigger-rule.md) 的内容贴进去。核心是：**一个触发词 → 指向 `docs/proof-of-done.md` → AI 自动跑全套**，你不用每次手动指挥「再去验证一下数据库」「再去看下日志」。
-
----
-
-## Step 4 — 持续沉淀教训
-
-每次实战发现新的「AI 报完成但翻车」模式 → 立刻补进 `IRON-LAWS.md` 一条新铁律（`R16`、`R17`…）。
-
-这是范式「长期」的真义：**它不是一份写死的清单，是一个随你踩坑持续生长的知识库**。R1–R15 就是这么一条条长出来的。
+Paste the contents of [templates/trigger-rule.md](templates/trigger-rule.md) in. The point: **one trigger word → points at `docs/proof-of-done.md` → the agent runs the whole thing**, so you don't manually nag it to "go verify the database" / "go check the logs" every time.
 
 ---
 
-## 你需要自己拍板的设计选项
+## Step 4 — Keep distilling lessons
 
-| 选项 | 影响 |
+Every time you catch a new "agent-reports-done-but-wrong" pattern → immediately append a new law to `IRON-LAWS.md` (`R16`, `R17`, …).
+
+This is the real meaning of "long-term": **it's not a frozen checklist, it's a knowledge base that grows as you hit new traps.** R1–R15 grew exactly this way.
+
+---
+
+## Decisions you make yourself
+
+| Option | Trade-off |
 |------|------|
-| 触发词用中文还是英文 | 团队语言习惯（如「启动长期测试」/「run the gauntlet」） |
-| 报告是否留档 | 留档便于复盘，但增加工作量（建议 `reports/<date>-<topic>.md`） |
-| 独立审查用哪两个 AI | 看你订阅了哪些 |
-| 自动化烟测覆盖多少 | 覆盖越多越省人，但维护成本高 |
-| 测试数据是否进 git | 看保密策略 + 文件体积（敏感数据建议 `.gitignore`） |
-| Phase 6 浏览器测试是否每次都做 | 后端纯改动可跳；UI 改动**必做** |
-| Phase 4 独立审查最大轮数 | 视复杂度，常 3–5 轮 |
+| Trigger word language | team habit (e.g. "run the gauntlet" / a phrase in your language) |
+| Archive reports or not | archiving helps retros but adds work (suggest `reports/<date>-<topic>.md`) |
+| Which two AIs for review | depends on what you subscribe to |
+| How much automated smoke testing | more coverage saves human time but costs maintenance |
+| Test data in git or not | depends on confidentiality + file size (sensitive data → `.gitignore`) |
+| Run Phase 6 browser test every time | backend-only changes can skip; UI changes **must** |
+| Max rounds for Phase 4 review | by complexity, commonly 3–5 |
 
 ---
 
-## 与「写死版」的区别（通用化决策）
+## How this differs from a "hardcoded" version
 
-这套协议刻意把一切环境相关的东西抽象掉了，方便任何项目用：
+This protocol deliberately abstracts away everything environment-specific, so any project can use it:
 
-| 写死版会写 | 通用版抽象成 |
+| A hardcoded version writes | The generic version abstracts to |
 |----------|-----------|
-| `docker compose restart backend + nginx -s reload` | 「部署 / 重启 / 反代刷新」，你按工具栈填 |
-| 某家 SMTP + IMAP 服务器地址 | 「投递类副作用必须接收方确认」 |
-| 某个具体 AI CLI | 「用第二个独立 AI 审查」，任选 |
-| 某个生产 IP / 域名 | 「生产 / Staging / Demo 环境」 |
-| 某个签 token 函数 + 测试账号 | 「鉴权策略」三档优先级 |
+| `docker compose restart backend + nginx -s reload` | "deploy / restart / reverse-proxy reload," you fill per stack |
+| a specific SMTP + IMAP server address | "delivery side effects require receiver confirmation" |
+| one specific AI CLI | "review with a second, independent AI," your pick |
+| a specific prod IP / domain | "the prod / staging / demo environment" |
+| a specific sign-token function + test account | the "auth strategy" three-tier priority |
 
-> 一句话：**环境细节你填，方法论我给。**
+> In one line: **you fill in the environment details, the methodology is given.**

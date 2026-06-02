@@ -1,48 +1,48 @@
-# 长期测试报告模板
+# Long-term test report template
 
-> 收口（Phase 7）产出。**强制分三档，不混档。** 每条 ✅ 必须挂可独立复核的凭据。
+> Produced at sign-off (Phase 7). **Mandatory three tiers, never merged.** Every ✅ must carry independently re-checkable evidence.
 
 ---
 
-## 长期测试报告 — <改动主题>
+## Long-term test report — <change topic>
 
-**改动**：<一句话说明改了什么>
-**环境**：<生产 / staging + 入口>
-**Commit**：<hash(es)>
+**Change**: <one line on what changed>
+**Environment**: <prod / staging + entry point>
+**Commit**: <hash(es)>
 
-### ✅ 已验证（N 项）
+### ✅ Verified (N)
 
-> 每条都有客观证据，可独立复核。
+> Each has objective, independently re-checkable evidence.
 
-- **<功能点>**：<凭据> —— 例：查库 `SELECT` 返回净欠料 4000，= SO未交 47072 − 库存 43072，手算一致
-- **<功能点>**：<凭据> —— 例：端到端调端点返回 X 三类分布正确，schema 字段齐
+- **<feature>**: <evidence> — e.g. DB `SELECT` returned net shortage 4000 = SO-open 47072 − stock 43072, matches hand calc
+- **<feature>**: <evidence> — e.g. endpoint returned correct 3-way distribution, schema fields complete
 - …
 
-### ⏳ 待用户确认（M 项）
+### ⏳ Awaiting confirmation (M)
 
-> 主观判断或外部送达，等接收方 / 审核方反馈才能升级为 ✅。
+> Subjective judgment or external delivery — only promotable to ✅ after the receiver / reviewer confirms.
 
-- **<功能点>**：待 <谁> 确认 <什么>
-  - 例：邮件已发出（后端日志确认 callback 发出），待 <收件人> 确认收件箱（含垃圾箱）真收到
-  - 例：前端筛选已部署 + 字段验证过，待用户 hard refresh 后肉眼确认渲染
+- **<feature>**: awaiting <whom> to confirm <what>
+  - e.g. email went out (backend log confirms the callback fired), awaiting <recipient> to confirm inbox (incl. spam)
+  - e.g. frontend filter deployed + fields verified, awaiting user hard-refresh to eyeball the render
 - …
 
-### ❌ 未通过 / 未测（K 项）
+### ❌ Failed / untested (K)
 
-> 失败 / 异常 / 没覆盖的场景，明说不藏。
+> Failures / exceptions / uncovered scenarios — stated plainly, not hidden.
 
-- **<功能点>**：<原因 / 哪个场景没跑 / 什么报错>
+- **<feature>**: <reason / which scenario wasn't run / what error>
 - …
 
-### Phase 3 同类排查记录
+### Phase 3 same-pattern sweep record
 
-> 本次改动的 pattern + grep 全出现点的判断（改 or 不改 + 原因）。
+> The change's pattern + the verdict from grepping all occurrences (fix / no-fix + why).
 
-- pattern：<改了什么模式>
-- 排查结果：<找到 N 处同类，X 处也改了，Y 处不用改因为…>
+- pattern: <what pattern changed>
+- sweep result: <found N siblings, fixed X, Y left alone because…>
 
-### 改动清单
+### Change manifest
 
-- 文件：<list>
-- 部署位置：<env>
-- 已知遗留 / 下个迭代：<list>
+- Files: <list>
+- Deploy target: <env>
+- Known leftovers / next iteration: <list>

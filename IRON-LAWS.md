@@ -1,91 +1,91 @@
-# 通用铁律（踩坑沉淀）
+# Iron Laws (hard-won from real failures)
 
-> 每一条都是一次真实翻车的疤 —— AI 报了「完成」，但实际是错的。
-> 读这些比读流程更能让人信服：你会看到「假通过」长什么样。
-> **范式是「长期」的：每次发现新的「AI 报完成但翻车」模式，就补一条新铁律。**
+> Each one is scar tissue from a real faceplant — an agent reported "done" and was wrong.
+> Reading these is more convincing than reading the protocol: you'll see exactly what a "fake pass" looks like.
+> **The protocol is *long-term*: every time you catch a new "agent-reports-done-but-wrong" pattern, append a new law.**
 
 ---
 
-### R1 — 「本地通过」不算「验证通过」
-**坑**：本地用 mock / fixture / 内存数据库，不接生产数据源（VPN / 真实 DB / 外部 API）。本地全绿，生产连不通 / 数据不对。
-**通用化**：任何「测试通过」必须基于生产或生产同构环境。
-**例外**：纯计算函数 + 无外部依赖可只本地，但报告里必须写「本地 sanity，待生产验证」。
+### R1 — "Local pass" is not "verified"
+**Trap**: local uses mocks / fixtures / in-memory DB, never touching the real data source (VPN / real DB / external API). All green locally, can't connect / wrong data in prod.
+**General rule**: any "tests pass" must be based on production or a production-equivalent environment.
+**Exception**: a pure computation function with no external dependency can be local-only — but the report must say "local sanity, pending prod verification."
 
-### R2 — 接口成功 ≠ 结果正确
-**坑**：技术层成功（200 / commit / sent）跟业务层正确（字段对 / 收到 / 计算准）是两件事。
-**通用化**：副作用必须验「结果」，不是验「调用」。
+### R2 — A successful call ≠ a correct result
+**Trap**: technical success (200 / commit / sent) and business correctness (right field / received / accurate calc) are two different things.
+**General rule**: verify the **result** of a side effect, not the **call**.
 
-### R3 — 投递类副作用必须接收方确认
-**坑**：SMTP / Webhook / 消息队列「接受」≠ 接收方「处理成功」。
-**通用化**：任何「投递」动作的验证终点在接收方，不在发送方。
-**起源**：一次催交邮件，只验到 `status=sent` 就报「3 封邮件 e2e 通过」，实际收件人一封没收到 —— `sent` 仅代表 SMTP 服务器接受。
+### R3 — Delivery side effects require receiver confirmation
+**Trap**: SMTP / webhook / message-queue *accepting* ≠ the receiver *processing successfully*.
+**General rule**: the verification endpoint of any "delivery" action is at the receiver, not the sender.
+**Origin**: a chase-reminder email — reported "3 emails e2e passed" off `status=sent` alone, recipient got zero. `sent` only means the SMTP server accepted it.
 
-### R4 — 用户给的数据立刻持久化归档
-**坑**：临时目录（`/tmp`）重启即丢；下次想再用就没了。
-**通用化**：建立 `raw/原始档_YYYYMMDD/` 类约定，用户拖来的所有文件立刻存（截图 / Excel / 样本）。后续测试要拿「真实样本」对账，靠的就是这个归档。
+### R4 — Persist user-provided data immediately
+**Trap**: a temp dir (`/tmp`) is gone on restart; next time you want it, it's lost.
+**General rule**: establish a `raw/source_YYYYMMDD/` convention; archive every file the user hands you (screenshots / Excel / samples) on the spot. Later tests reconcile against these "real samples" — this archive is what makes that possible.
 
-### R5 — 测试账号凭据会失效
-**坑**：生产账号被业务方轮换，测试代码硬编码的 password 早晚 401。
-**通用化**：优先服务端代码直接签 token（绕开登录）→ 次选专门测试账号定期同步 → 兜底失效就问用户，别反复试。
+### R5 — Test-account credentials expire
+**Trap**: a prod account gets rotated by the business side; a password hardcoded in test code 401s sooner or later.
+**General rule**: prefer signing a token in server code (skip login) → then a dedicated test account synced regularly → fallback: when it fails, ask the user, don't retry blindly.
 
-### R6 — 工具 / 路径兼容性
-**坑**：部分 CLI 工具对路径敏感（非 ASCII / 空格 / 特殊字符），会卡死或解析错。
-**通用化**：工作路径用 ASCII（`/opt/<proj>` 而不是含中文的路径）；敏感操作 rsync 到 `/tmp/<proj>` 再跑；命令路径用引号包裹。
+### R6 — Tool / path compatibility
+**Trap**: some CLI tools are path-sensitive (non-ASCII / spaces / special chars) and hang or mis-parse.
+**General rule**: keep the working path ASCII (`/opt/<proj>`, not a path with CJK chars); rsync to `/tmp/<proj>` before sensitive operations; wrap command paths in quotes.
 
-### R7 — 跨进程日志可能漏抓
-**坑**：子进程 / 后台 worker 的日志可能不进主进程日志流。你 grep 主日志没看到，以为没发生。
-**通用化**：验日志前先确认日志收集是否覆盖你要查的进程（异步任务 / 子进程 / 另一个 worker）。
+### R7 — Cross-process logs can be missed
+**Trap**: a subprocess / background worker's logs may not flow into the main process log stream. You grep the main log, see nothing, assume it didn't happen.
+**General rule**: before trusting a log check, confirm your log collection actually covers the process you're inspecting (async task / subprocess / a different worker).
 
-### R8 — 部署节奏不要撞定时任务
-**坑**：部署期间触发的 cron 可能被 `SIGTERM` 砍掉，导致某次同步 / 结算没跑还没人发现。
-**通用化**：高频部署窗口给定时任务加 `misfire_grace_time` + 启动 catchup；或避开 cron 高峰。
+### R8 — Don't let deploys collide with scheduled jobs
+**Trap**: a cron triggered mid-deploy can get `SIGTERM`'d, so a sync / settlement silently doesn't run and nobody notices.
+**General rule**: in high-frequency deploy windows give scheduled jobs a `misfire_grace_time` + startup catch-up; or avoid the cron peak.
 
-### R9 — 改动后默认 commit + push
-**坑**：部署用 rsync 等绕过 git 时，代码会滞后于生产，后续 session 看 git 不知道真实状态。
-**通用化**：改完到自然完成点默认 commit + push，别等问。仓库没 remote 时至少本地 commit，让 `HEAD` == 生产；推不了就明说「无 remote」，别假装推了。
+### R9 — Commit + push by default after a change
+**Trap**: when you deploy by bypassing git (rsync etc.), the code drifts ahead of git, and the next session can't tell the real state from git.
+**General rule**: at a natural stopping point, commit + push by default — don't wait to be asked. No remote? At least commit locally so `HEAD` == prod; if you can't push, say so plainly — don't pretend you did.
 
-### R10 — 合成事件 ≠ 真实交互（UI 测试）
-**坑**：用 `dispatchEvent(new Event('input'))` / JS `.click()` 驱动表单「测通过」了，但真 bug 是某些浏览器选 `<select>` 只触发 `change` 不触发 `input`（老 WebKit / 内置 webview）。合成事件还会掩盖「真实点击是否命中」（动态生成的元素 handler 可能不触发）。
-**通用化**：UI 验证必须**真实点击 / 真实键入**（Playwright/Puppeteer 的 click/fill，不是 dispatchEvent）；表单事件同时绑 `input` + `change`；考虑国内内置浏览器（微信 / QQ / UC）+ 老安卓 webview 差异。
-**起源**：一个新建表单「选材质没反应」—— 监听只绑 `input`，某类浏览器选下拉无效。
+### R10 — Synthetic events ≠ real interaction (UI testing)
+**Trap**: you drive a form with `dispatchEvent(new Event('input'))` / JS `.click()` and "it passes," but the real bug is that some browsers fire only `change` (not `input`) on `<select>` (old WebKit / embedded webviews). Synthetic events also mask "did the real click even hit" (handlers on dynamically generated elements may not fire).
+**General rule**: UI verification must use **real clicks / real typing** (Playwright/Puppeteer click/fill, not dispatchEvent); bind form events to **both `input` and `change`**; account for embedded browsers (in-app webviews) and old mobile webviews.
+**Origin**: a "select material does nothing" form bug — the listener was bound to `input` only, so picking the dropdown did nothing in WebKit-class browsers.
 
-### R11 — 批量迁移 / 数据改造安全
-**坑**：给存量数据跑迁移脚本（生成别名 / 补字段 / 改格式）是高危操作，AI 容易「看起来跑完了」但实际污染或造假数据。
-**通用化（迁移脚本五查）**：
-1. **幂等**：重跑 = no-op（已处理的跳过），别每跑一次多一批
-2. **抽样核对源数据**：生成的值跟原始字段独立对账，看「对不对」不是「有没有生成」
-3. **不污染非目标行**：只动该动的，查「非目标范围被改了几条（期望 0）」
-4. **dry-run 必须真无副作用**：dry-run 里别调用会改状态的函数（如会推进序号计数器的逻辑），用 preview / 只读路径
-5. **派生字段用权威源**：别用脏数据（如编码前缀）推导分类，用数据库的权威字段
-**起源**：一次数千条 legacy 别名迁移 —— dry-run 一度推进了序号计数器；某数组被当字段凭空造值；编码前缀≠实际类别被固化。
+### R11 — Bulk migration / data rewrite safety
+**Trap**: running a migration script over existing data (generate aliases / backfill fields / reformat) is high-risk; agents easily "look like they finished" while actually polluting or fabricating data.
+**General rule (five checks for migration scripts)**:
+1. **Idempotent**: re-run = no-op (skip already-processed), not "one more batch each run"
+2. **Spot-check against the source**: reconcile generated values against the original fields independently — "is it correct," not "did it generate something"
+3. **Don't pollute non-target rows**: touch only what should change; query "how many out-of-scope rows got changed (expect 0)"
+4. **Dry-run must be truly side-effect-free**: don't call state-mutating functions in dry-run (e.g. logic that advances a sequence counter); use a preview / read-only path
+5. **Derive fields from the authoritative source**: don't infer classification from dirty data (e.g. a code prefix); use the DB's authoritative field
+**Origin**: a few-thousand-row legacy alias migration — the dry-run once advanced the sequence counter; an array got fabricated into a field value; a code-prefix≠actual-category mistake got cemented in.
 
-### R12 — schema / 索引变更要「查实际生效」，幂等别靠缓存快照
-**坑**：DDL 迁移（加列 / 改索引 / ALTER）跑完没报错 ≠ 真生效。尤其「先 DROP 再 CREATE」类迁移，如果用了 ORM 的 `inspector` 缓存判断「索引是否已存在」，缓存可能是 **DROP 之前的快照** —— DROP 后缓存仍显示索引在，于是跳过 CREATE，结果**旧约束删了、新约束没建**，唯一性 / 索引悄悄丢失，直到生产撞键才暴露。
-**通用化**：
-- 迁移后**查实际 schema**（`information_schema` / `pg_indexes` / `\d` ）确认结构真变了，别只看「脚本没抛异常」
-- 幂等判断用**实时查询**（查当前索引定义里有没有新列），不要用可能被缓存的元数据快照
-- 「DROP + CREATE」放进幂等条件（只在「现状不符合目标」时才动），避免每次启动重建
-**起源**：一次唯一索引从 3 列升级到 4 列，迁移用 inspector 缓存判断「索引存在就跳过」，DROP 旧 3 列后缓存仍命中 → 没建 4 列 → 唯一约束消失。部署时查 `pg_indexes` 才发现，手动补建 + 改成查 `indexdef` 是否含新列的幂等逻辑。
+### R12 — Schema / index changes: "verify it actually took effect," and don't base idempotency on a cached snapshot
+**Trap**: a DDL migration (add column / change index / ALTER) running without error ≠ it took effect. Especially "DROP then CREATE" migrations: if you check "does the index already exist" via an ORM's `inspector` cache, that cache may be a **snapshot from before the DROP** — after dropping, the cache still shows the index present, so CREATE gets skipped, leaving **the old constraint dropped and the new one never built**. Uniqueness / the index silently vanishes until prod collides on a key.
+**General rule**:
+- After a migration, **query the actual schema** (`information_schema` / `pg_indexes` / `\d`) to confirm the structure really changed — don't just trust "the script didn't throw"
+- Make idempotency checks **live queries** (does the current index definition contain the new column?), not a possibly-cached metadata snapshot
+- Put "DROP + CREATE" behind an idempotent condition (act only when the current state doesn't match the target) to avoid rebuilding on every startup
+**Origin**: a unique index was upgraded from 3 columns to 4. The migration used the inspector cache to "skip if the index exists"; after dropping the old 3-column index, the cache still matched → the 4-column index was never built → the unique constraint disappeared. It was caught by querying `pg_indexes` during deploy — fixed by hand-rebuilding it and switching to a "does `indexdef` contain the new column" live-query idempotency check.
 
-### R13 — 部署（绕过 git）前，确认不覆盖目标环境的 hotfix
-**坑**：生产用 rsync / scp 部署（不走 git pull）时，如果直接整目录同步，可能把目标环境里「别人打的线上 hotfix / 你 git 里没有的改动」盖掉。
-**通用化**：
-- 用**精确文件清单**同步你这次改的文件（`rsync --files-from`），不要整目录 `--delete`
-- 同步前**对比**「你要传的文件」vs「目标现有版本」：取目标文件的 hash（md5），跟你本地「改动前的基线版本」对比 —— 一致才说明目标没有 git 之外的改动，覆盖安全；不一致就先把目标的版本拉回来 merge
-**起源**：生产不是 git 仓库（rsync 部署），同步前对几个敏感文件做了「生产版本 vs 本地 commit 前基线」的 md5 比对，确认 4 个都一致，才放心覆盖。
+### R13 — Before deploying (bypassing git), make sure you don't clobber the target's hotfix
+**Trap**: when prod is deployed by rsync / scp (not `git pull`), a blind whole-directory sync can overwrite "a live hotfix someone applied on the target / a change your git doesn't have."
+**General rule**:
+- Sync the **exact list of files** you changed this round (`rsync --files-from`), not a whole directory with `--delete`
+- Before syncing, **compare** "the files you're about to push" against "the target's current version": hash (md5) the target file and compare against your *pre-change baseline* — if they match, the target has no out-of-git changes and overwriting is safe; if not, pull the target's version back and merge first
+**Origin**: prod wasn't a git repo (rsync deploy). Before overwriting, md5-compared "prod version vs local pre-commit baseline" for the sensitive files; all matched, so the overwrite was safe.
 
-### R14 — 第二个 AI 不可用时，用「对抗性自审」替代，别跳过
-**坑**：独立审查（Phase 4）依赖第二个 AI，但它可能断线 / 限流 / 没订阅。AI 容易就此「跳过审查」直接报完成。
-**通用化**：第二个 AI 拿不到结果时，**不能跳过这一步**，改成把自己当审查者做对抗性自审：
-- 列出改动的**关联模式**（如「所有 `X` 和 `Y` 的关联查询」「所有按某字段的过滤」）
-- `grep` 出全部出现点，逐个问「这里会不会漏 / 会不会串 / 边界对不对」
-- 重点查「改了 A 维度后，所有按旧维度关联的地方是否都跟上」
-**起源**：一次独立审查的 AI 中途掉线没出结构化结果，改成手动 grep 全部「需求↔订单」关联点深审，抓出 2 处遗漏的隔离条件（收货扣减、存量数据清理），都是会导致跨维度数据串的真 bug。
+### R14 — When the second AI is unavailable, substitute "adversarial self-review" — don't skip
+**Trap**: independent review (Phase 4) depends on a second AI, but it can drop / rate-limit / be unsubscribed. Agents readily "skip the review" and report done.
+**General rule**: when you can't get a result from the second AI, **do not skip** — put on the reviewer's hat and do adversarial self-review:
+- List the change's **related patterns** (e.g. "every `X`-to-`Y` join," "every filter on field Z")
+- `grep` out every occurrence and interrogate each: "could this miss / cross-contaminate / get the boundary wrong?"
+- Focus on "after I changed dimension A, did *every* place that joins on the old dimension keep up?"
+**Origin**: the independent-review AI dropped its connection mid-run with no structured result. Switched to hand-grepping every "demand↔order" touchpoint for a deep review, which caught 2 missing isolation conditions (receipt deduction, stale-data cleanup) — both real cross-dimension data-bleed bugs.
 
-### R15 — 测试期的副作用别打扰真实用户
-**坑**：测试调用触发的对外副作用（给真实客户 / 供应商群发通知邮件、推真实 webhook、改真实外部系统）会变成事故 —— 一群真人收到莫名其妙的测试消息。
-**通用化**：
-- 测试调用里 mock / patch 掉对外投递（临时替换发信函数为 no-op），**只在这次测试的进程里生效**
-- **别改生产定时任务的正常逻辑** —— 它该照常给真实用户发就发
-- 验证「逻辑跑对了 + 该发的标记对了」，投递本身用受控的测试收件人验
-**起源**：一次跑全量数据同步会给真实供应商发「订单变更」邮件，测试时 monkeypatch 把发信函数换成 no-op（只这次进程），既验证了同步逻辑、又没 spam 真实供应商，每天的定时同步照常发。
+### R15 — Don't disturb real users during testing
+**Trap**: outbound side effects triggered by a test call (mass-emailing real customers / suppliers, pushing a real webhook, mutating a real external system) become incidents — a bunch of real people get baffling test messages.
+**General rule**:
+- Mock / patch out outbound delivery inside the test call (temporarily swap the send function for a no-op), **scoped to this test process only**
+- **Don't change the normal logic of production scheduled jobs** — they should keep sending to real users as usual
+- Verify "the logic ran correctly + the right flags got set"; verify delivery itself against a controlled test recipient
+**Origin**: a full data-sync would email "order change" notices to real suppliers. During testing, monkeypatched the send function to a no-op (this process only) — verified the sync logic without spamming real suppliers, while the daily scheduled sync kept emailing them as normal.

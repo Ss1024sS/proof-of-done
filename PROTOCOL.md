@@ -1,180 +1,180 @@
-# proof-of-done — 完整协议（8 阶段）
+# proof-of-done — The Full Protocol (8 phases)
 
-> 触发词（见 [templates/trigger-rule.md](templates/trigger-rule.md)）→ AI 逐阶段全跑，不用一步步指挥。
-> **核心：本地不算数；「调用成功」≠「结果正确」；没有真凭据不写「通过」；报告分三档不混。**
+> Say the trigger word (see [templates/trigger-rule.md](templates/trigger-rule.md)) → the agent runs every phase, no step-by-step babysitting.
+> **Core: local doesn't count; "success" ≠ "correct"; no evidence, no "pass"; three tiers, never merged.**
 
-适用对象：任何 AI 协作开发的项目（Claude Code / Cursor / Cline / Aider / Codex / Copilot 等），不绑定任何技术栈或业务领域。
+Audience: any AI-assisted project (Claude Code / Cursor / Cline / Aider / Codex / Copilot …). Not tied to any stack or domain.
 
 ---
 
-## 四条核心原则（Iron Laws）
+## The four iron laws
 
-| 原则 | 含义 | 反例 |
+| Law | Meaning | Anti-example |
 |------|------|------|
-| **A. 本地不算数** | 本地编译/单测/类型检查只是 sanity，不算「验证」 | 「单测 340 passed」不能写「e2e 通过」 |
-| **B. 接口成功 ≠ 结果正确** | HTTP 200 / status=sent / commit 完成都只是技术成功 | 邮件 sent 不等于收件人收到 |
-| **C. 没真凭据不写「通过」** | 必须有可独立核对的证据（日志/截图/收件箱/查库结果） | 「应该好了」/「理论上对」不算 |
-| **D. 报告分三档不混** | ✅已验证 / ⏳待确认 / ❌未通过 — 三档独立 | 把待确认包装成「通过」是欺骗性报告 |
+| **A. Local doesn't count** | Compile / unit / type-check is sanity, not verification | "340 tests passed" ≠ "e2e verified" |
+| **B. Success ≠ correct** | HTTP 200 / `status=sent` / commit-done is *technical* success only | `sent` ≠ the recipient received it |
+| **C. No evidence, no "pass"** | Every claim needs independently re-checkable proof (log / DB row / screenshot / receipt) | "should be fine" / "in theory correct" doesn't count |
+| **D. Three tiers, never merged** | ✅ verified / ⏳ awaiting confirmation / ❌ failed-or-untested — kept separate | Dressing ⏳ up as ✅ is a deceptive report |
 
 ---
 
-## Phase 0 — 部署前置（Pre-flight）
+## Phase 0 — Pre-flight
 
-**目标**：确认改动真的进了你要测的环境，不是在测本地工作树。
+**Goal**: confirm the change actually reached the environment you're about to test — you're not testing your local working tree.
 
-- [ ] 改动同步到目标环境（生产 / Staging / Demo）
-- [ ] 服务进程已重启（按你的部署方式：容器 / 进程管理器 / PaaS）
-- [ ] 反向代理 / 负载均衡已 reload（如果改了路由 / 静态资源）
-- [ ] 代码新鲜度：本地 `HEAD` == 目标环境实际跑的版本（用哈希 / md5 对比，别靠感觉）
-- [ ] 数据库 schema 变更已应用（migration / ALTER），且**确认真生效**（查 schema 不是看脚本跑没报错 —— 见 [R12](IRON-LAWS.md)）
-- [ ] 缓存已清 / 失效（CDN / Redis / 进程内缓存）
-- [ ] **回滚就绪**（上线带真实用户的环境前必查）：改数据前单独再备份一次 + 知道回滚命令（旧镜像 tag / DB 备份 / 上个 release）
-- [ ] **部署不覆盖目标环境的 hotfix**：若部署方式绕过 git（rsync / scp），先对比「你要传的文件」vs「目标现有版本」，确认没把别人的线上修复盖掉（见 [R13](IRON-LAWS.md)）
+- [ ] Change synced to the target environment (prod / staging / demo)
+- [ ] Service process restarted (per your deploy method: container / process manager / PaaS)
+- [ ] Reverse proxy / load balancer reloaded (if routes or static assets changed)
+- [ ] Code freshness: local `HEAD` == the version actually running on target (compare by hash / md5, not by gut feeling)
+- [ ] DB schema change applied (migration / ALTER) **and confirmed to have taken effect** — query the actual schema, don't just trust "the script ran without error" (see [R12](IRON-LAWS.md))
+- [ ] Caches cleared / invalidated (CDN / Redis / in-process)
+- [ ] **Rollback ready** (mandatory before any environment with real users): take a fresh backup *before* mutating data + know the rollback command (old image tag / DB snapshot / previous release)
+- [ ] **Deploy must not clobber the target's hotfix**: if you deploy by bypassing git (rsync / scp), first compare "the files you're about to push" against "the target's current version" so you don't overwrite someone's live fix (see [R13](IRON-LAWS.md))
 
-**反模式**：改完代码立刻跑测试 —— 测的是上一个版本。出事了才发现没备份、不知道怎么回滚。
-
----
-
-## Phase 1 — 逻辑测试（Function-level）
-
-**目标**：在目标环境直调函数，走遍正常 / 边界 / 非法分支。
-
-- [ ] 在目标环境里执行（不是本地）
-- [ ] 喂正常入参，验返回值
-- [ ] 喂边界值（空 / 0 / 最大 / 最小 / None）
-- [ ] 喂非法值，验抛错或拒绝
-- [ ] 每个 if-else 分支都被覆盖
-
-**实操方式**（按运行环境选）：
-
-| 运行环境 | 直调函数方式 |
-|---------|-----------|
-| 容器（Docker/Podman） | `docker exec -i <c> <runtime> -` 喂脚本 |
-| K8s | `kubectl exec -i <pod> -- <runtime> -` |
-| 裸进程 + 远程主机 | `ssh host "cd /app && <runtime> ..."` |
-| Serverless / FaaS | 部署后用 invoke 命令 / 控制台 / SDK |
+**Anti-pattern**: change the code, immediately run tests → you're testing the *previous* version. Something breaks and you discover there's no backup and no rollback plan.
 
 ---
 
-## Phase 2 — 数据准确性（Numerical Verification）
+## Phase 1 — Logic (function-level)
 
-**目标**：关键数值跟**独立来源**对账，看「对不对」不是看「有没有返回」。
+**Goal**: call functions directly in the target environment, walk every branch — normal / boundary / illegal.
 
-独立来源举例：手算 / 原始 Excel·CSV·业务标杆 / 另一条查询路径（SQL 直查 vs API vs 报表）/ 上游系统原始记录（ERP·CRM·财务）/ 历史标杆（上次已验证的同业务数据）。
+- [ ] Execute in the target environment (not local)
+- [ ] Feed normal inputs, check return values
+- [ ] Feed boundary values (empty / 0 / max / min / null)
+- [ ] Feed illegal values, verify it throws or rejects
+- [ ] Every if/else branch is covered
 
-- **反模式**：「API 返回了 100 条数据」—— 但不知道这 100 条对不对。
-- **正模式**：「API 返回的 100 条里抽样 5 条跟原始单据核对，字段全匹配」，或「算出的净欠料 4000 = SO未交 47072 − 库存 43072，跟手算一致」。
+**How (pick by runtime)**:
 
----
-
-## Phase 3 — 同类排查（Same-Pattern Sweep）⭐ 防「头痛只治头」
-
-**目标**：修完报错那一处，必须主动找「换个写法 / 换个位置的同类问题」，否则只治标。
-
-- [ ] 列出本次改动的**模式**（pattern）：如「权限装饰器 A→B」/「加某字段」/「改某查询口径」/「改某 UI 入口」
-- [ ] **`grep` 全代码库该 pattern 的所有出现点**，逐个判断同类是否也该改 —— **一个模块的端点常散在多个文件**
-- [ ] 跨文件 / 跨模块 / 前后端配套：改了后端漏没漏前端？加了字段，所有 row 类型 / 所有导出 / 所有视图都同步了？改了 A 入口，B 同款入口呢？
-- [ ] 把「已排查的同类 + 判断（改 or 不改 + 原因）」写进报告，**不能默认「只有报错那一处」**
-- [ ] Phase 4 的独立审查是这一步的交叉验证，**不能替代你自己先 grep**
-
-**为什么独立成环**：实战里 AI 反复犯「修一处、漏同模块散在别处的五处」。例：把权限装饰器只在 `module.py` 改了，漏了同模块散在 `module_extra.py` / `module_derived.py` 的十几个端点，用户勾了模块却调不动核心功能。
+| Runtime | Direct-call method |
+|------------|-----------|
+| Container (Docker/Podman) | `docker exec -i <c> <runtime> -` piping a script |
+| Kubernetes | `kubectl exec -i <pod> -- <runtime> -` |
+| Bare process on a remote host | `ssh host "cd /app && <runtime> ..."` |
+| Serverless / FaaS | invoke command / console / SDK after deploy |
 
 ---
 
-## Phase 4 — 独立审查（Independent Review，多轮）
+## Phase 2 — Data accuracy
 
-**目标**：用**另一个独立视角**审 diff，找出当前 AI 漏掉的 bug。
+**Goal**: reconcile key numbers against an **independent source** — verify "is it correct," not "did it return something."
 
-**为什么独立**：同一个 AI 看自己写的代码有盲区。换一个（不同模型 / 不同厂商）能抓出对方习惯性遗漏。
+Independent sources: hand calculation / original Excel·CSV·business reference data / a second query path (raw SQL vs API vs reporting system) / upstream system records (ERP·CRM·finance) / a historical baseline (last verified figures).
 
-**组合参考**（任选两个）：主 AI + 第二个 AI CLI（Codex / Claude / Gemini / DeepSeek …）/ 主 AI + 远端 LLM。
-
-**审查节奏**：
-1. 把 diff（`git diff <base>..HEAD`）发给第二个 AI
-2. 小 prompt 聚焦一类问题（先查 SQL 注入，再查并发，再查空指针）—— 大 diff 一次喂太多会抓不住重点
-3. 每轮拿 P0/P1/P2 列表 → 修完 → 重新 diff 复审 → 直到 LGTM 再开下一类
-
-**工具兼容性陷阱**（踩过坑）：非 ASCII 路径 / 路径含空格可能让某些 CLI 卡死 → 操作前 rsync 到 ASCII 临时路径再跑。
-
-**第二个 AI 不可用时**（断线 / 限流 / 没订阅）：**不能跳过这一步**，改成**对抗性自审** —— 把自己当审查者，`grep` 出所有跟改动相关的关联点（如所有 `X↔Y` 的 join / 所有同字段查询），逐个问「这里会不会漏 / 会不会串 / 边界对不对」。见 [R14](IRON-LAWS.md)。
+- **Anti-pattern**: "the API returned 100 rows" — but you don't know if those 100 are right.
+- **Right pattern**: "of the 100 rows, I spot-checked 5 against the source documents — every field matches," or "computed net shortage 4000 = SO-open 47072 − stock 43072, matches the hand calc."
 
 ---
 
-## Phase 5 — 生产端到端（Production E2E）
+## Phase 3 — Same-pattern sweep ⭐ (stop "treating only the symptom")
 
-**目标**：真打目标环境端点，**副作用必须验证到「结果」**，不是验到「接口返回」。
+**Goal**: after fixing the spot that errored, actively hunt for "the same problem written differently / located elsewhere" — otherwise you only treat the symptom.
 
-### 5.1 鉴权策略（测试账号密码会被轮换）
+- [ ] Name the **pattern** of this change: e.g. "auth decorator A→B" / "added field X" / "changed query semantics" / "changed UI entry point"
+- [ ] **`grep` the whole codebase for that pattern**, judge each hit for whether it needs the same fix — **a module's endpoints are often scattered across multiple files**
+- [ ] Cross-file / cross-module / front-back parity: changed the backend, did you miss the frontend? Added a field — did all row types / all exports / all views get it? Changed entry A — what about entry B?
+- [ ] Write "the sibling cases found + the verdict (fix / no-fix + why)" into the report — **never default to 'only the spot that errored'**
+- [ ] Phase 4's independent review is the cross-check for this step — it does **not** replace doing the grep yourself first
 
-1. 服务端如果暴露「签 token」能力 → 用代码直接签短期 token（最稳，绕开登录）
-2. 专门的测试账号 + 密码（锁好，定期同步）
-3. 复用真实账号（有审计 / 隔离风险，不推荐）
+**Why it's its own phase**: agents repeatedly commit the "fix one, miss five in the same module" failure. Example: an auth decorator was changed only in `module.py`, missing a dozen endpoints scattered across `module_extra.py` / `module_derived.py` — the user enabled the module but still couldn't reach the core features.
 
-### 5.2 副作用验证清单（按类型）
+---
 
-| 副作用 | 接口层证据（**不够**） | 结果层证据（**必须**） |
+## Phase 4 — Independent review (multi-round)
+
+**Goal**: have an **independent perspective** review the diff and catch what the primary agent missed.
+
+**Why independent**: an AI reviewing its own code has blind spots. A different one (different model / vendor) catches the other's habitual omissions.
+
+**Combos** (pick any two): primary AI + a second AI CLI (Codex / Claude / Gemini / DeepSeek …) / primary AI + a remote LLM.
+
+**Cadence**:
+1. Send the diff (`git diff <base>..HEAD`) to the second AI
+2. Small prompts focused on one class of issue at a time (SQL injection first, then concurrency, then null-deref) — a huge diff dumped at once loses focus
+3. Each round: take the P0/P1/P2 list → fix → re-diff for re-review → only move to the next class once this one is LGTM
+
+**Tooling-compat traps** (been burned): non-ASCII paths / paths with spaces can hang some CLIs → rsync to an ASCII temp path before running.
+
+**When the second AI is unavailable** (dropped connection / rate limit / no subscription): **do not skip this phase**. Switch to **adversarial self-review** — put on the reviewer's hat, `grep` every change-related touchpoint (every `X↔Y` join / every query on the affected field), and interrogate each: "could this miss / cross-contaminate / get the boundary wrong?" See [R14](IRON-LAWS.md).
+
+---
+
+## Phase 5 — Production E2E
+
+**Goal**: hit the target environment's endpoints for real, and **verify side effects to the *result*** — not to the "call returned."
+
+### 5.1 Auth strategy (test-account passwords get rotated)
+
+1. If the server exposes a "sign token" capability → sign a short-lived token in code (most robust, skips login)
+2. A dedicated test account + password (locked down, rotated in sync)
+3. Reusing a real account (audit / isolation risk, not recommended)
+
+### 5.2 Side-effect verification checklist (by type)
+
+| Side effect | Call-layer evidence (**not enough**) | Result-layer evidence (**required**) |
 |----------|------------------|----------------|
-| **写数据库** | INSERT 返回 rowcount=1 | SELECT 查回来字段值跟预期匹配 |
-| **发邮件** | SMTP `status=sent` / 200 | **收件人确认收件箱（含垃圾箱）真收到** |
-| **发短信/钉钉/Slack** | API success | 接收方确认收到 + 内容对 |
-| **生成文件** | 文件路径存在 | 下载打开核对内容 / 格式 |
-| **触发任务** | 任务 ID 返回 | 任务跑完后产物正确（不只是入队） |
-| **改外部系统**（CRM/ERP） | 调用 200 | 登录外部系统肉眼看到变更 |
-| **缓存** | 写入 OK | 不同进程 / 节点读得到 |
-| **触发 webhook** | 200 | 目标系统收到 + 处理正确 |
+| **DB write** | INSERT returns rowcount=1 | SELECT it back, field value matches expectation |
+| **Email** | SMTP `status=sent` / 200 | **Recipient confirms it arrived (incl. spam folder)** |
+| **SMS / Slack / chat** | API success | Receiver confirms arrival + content correct |
+| **File generation** | File path exists | Download, open, verify content / format |
+| **Job trigger** | Job ID returned | Job finishes and the output is correct (not just "enqueued") |
+| **External system** (CRM/ERP) | Call returns 200 | Log into the external system and see the change with your eyes |
+| **Cache** | Write OK | A different process / node can read it |
+| **Webhook** | 200 | Target system received it + processed correctly |
 
-### 5.3 邮件类（最常翻车，单独强调）
+### 5.3 Email (the most common faceplant — emphasized separately)
 
-**铁律**：SMTP 接受 ≠ 收件人收到。
+**Iron law**: SMTP accepted ≠ recipient received.
 
-1. 后端日志确认真「发出去了」（注意：子进程 / 后台 worker 发的邮件可能不进主进程日志，要查对应 worker 日志）
-2. **让接收方确认收到**，或自动化烟测（发到可程序化访问的邮箱，用 IMAP 收信确认）
-3. 接收方未确认前：邮件项标 `⏳ 待确认`，**不准标 `✅`，不准写「e2e 通过」**
+1. Confirm in the backend logs that it actually "went out" (note: mail sent by a subprocess / background worker may not land in the main process log — check the right worker's log)
+2. **Have the recipient confirm**, or run an automated smoke test (send to a programmatically accessible mailbox, confirm via IMAP)
+3. Until the recipient confirms: mark the email item `⏳ awaiting confirmation` — **never `✅`, never "e2e passed"**
 
-### 5.4 别打扰真实用户
+### 5.4 Don't disturb real users
 
-测试期触发的副作用**不能波及真实用户**（给真实供应商 / 客户群发测试通知 = 事故）。在测试调用里 mock / 禁用对外投递（如临时 patch 掉发信函数），但**别动生产定时任务的正常逻辑**。见 [R15](IRON-LAWS.md)。
-
----
-
-## Phase 6 — 模拟人类（Browser / Client E2E）
-
-**目标**：真实用户客户端走完整流程，验交互 / 视觉 / 数据一致。
-
-- [ ] 用**真实浏览器 / 客户端**（不是 headless 跑 HTML 解析）
-- [ ] 走完整业务流程（登录 → 主操作 → 验证产物 → 退出）
-- [ ] console **0 error**；网络面板没有非预期的 4xx/5xx
-- [ ] 数据跟后端一致（前后端没有时区 / 格式分歧）
-- [ ] 易用性（按钮位置 / loading 状态 / 错误提示友好）
-- [ ] **真实点击 / 真实键入**，不是合成事件（`dispatchEvent` 会掩盖真 bug，见 [R10](IRON-LAWS.md)）
-
-**自签证书 / 内部环境技巧**：Chrome/Edge 证书错误页输入 `thisisunsafe` 绕过；服务端签 token → 浏览器 `localStorage.setItem` 注入 → 直接访问内部页（免每次登录）。
-
-**工具**：自动化 Playwright / Puppeteer / Selenium；半自动真浏览器 + DevTools。**截图证据必须留，跟报告挂钩。**
+Side effects triggered during testing **must not reach real users** (mass-sending test notifications to real suppliers / customers = an incident). Mock / disable outbound delivery inside the test call (e.g. temporarily patch the send function), but **don't touch the normal logic of production scheduled jobs**. See [R15](IRON-LAWS.md).
 
 ---
 
-## Phase 7 — 收口（Sign-off）
+## Phase 6 — Human simulation (browser / client E2E)
 
-**目标**：只读复查每条「通过」是否有真凭据，出最终三档报告。
+**Goal**: a real user client walks the full flow — verify interaction / visuals / data consistency.
 
-- [ ] 每条 ✅ 都有具体证据（日志行 / 截图 / 查库结果 / 接收方确认）
-- [ ] 没把「代码看起来对」包装成「已验证」
-- [ ] 没把「待用户确认」混进「已验证」
-- [ ] 已知问题（未修完 / 已知 bug / 没跑的场景）单独列出，不藏
+- [ ] Use a **real browser / client** (not a headless HTML parser)
+- [ ] Walk the complete business flow (login → main action → verify the artifact → logout)
+- [ ] **0 console errors**; network panel free of unexpected 4xx/5xx
+- [ ] Data matches the backend (no timezone / format divergence between front and back)
+- [ ] Usability (button placement / loading states / friendly error messages)
+- [ ] **Real clicks / real typing**, not synthetic events (`dispatchEvent` masks real bugs — see [R10](IRON-LAWS.md))
 
-报告模板见 [templates/report-template.md](templates/report-template.md)。**强制分三档**：
+**Self-signed cert / internal-env tricks**: on Chrome/Edge's cert error page type `thisisunsafe` to bypass; sign a token server-side → `localStorage.setItem` in the browser → jump straight to an internal page (skip login every time).
 
-| 标记 | 触发条件 | 凭据要求 |
-|------|---------|---------|
-| ✅ **已验证** | 客观证据可独立复核 | 日志 / 查库 / 截图 / 接收方确认 |
-| ⏳ **待用户确认** | 主观判断或外部送达 | 等接收方 / 审核方反馈 |
-| ❌ **未通过 / 未测** | 失败 / 异常 / 未覆盖 | 明说 |
-
-**禁止操作**：把 ⏳ 升级为 ✅（没真凭据就报通过）；把 ❌ 装作 ⏳（失败粉饰成「待确认」）；隐藏 ❌（报告里不提）。
+**Tools**: automated — Playwright / Puppeteer / Selenium; semi-auto — real browser + DevTools. **Keep screenshots as evidence, tied to the report.**
 
 ---
 
-## 一句话总结
+## Phase 7 — Sign-off
 
-> **本地通过不算数，接口成功不算数，没收到确认不算「通过」。报告分三档，不混档。触发词配进规则文件，AI 自动跑完，你只验最终报告。**
+**Goal**: read-only re-check that every "pass" has real evidence; emit the final three-tier report.
+
+- [ ] Every ✅ has concrete evidence (log line / screenshot / DB query result / receiver confirmation)
+- [ ] Nothing "the code looks right" got dressed up as "verified"
+- [ ] Nothing "awaiting user confirmation" got merged into "verified"
+- [ ] Known issues (unfinished / known bugs / scenarios not run) listed separately, not hidden
+
+Report template: [templates/report-template.md](templates/report-template.md). **Mandatory three tiers**:
+
+| Mark | Trigger | Evidence required |
+|------|---------|------------------|
+| ✅ **Verified** | Objective evidence, independently re-checkable | log / DB query / screenshot / receiver confirmation |
+| ⏳ **Awaiting confirmation** | Subjective judgment or external delivery | pending receiver / reviewer feedback |
+| ❌ **Failed / untested** | Failure / exception / not covered | state it plainly |
+
+**Forbidden**: promoting ⏳ to ✅ (reporting "pass" without real proof); disguising ❌ as ⏳ (failure painted as "awaiting confirmation"); hiding ❌ (not mentioning it in the report).
+
+---
+
+## In one line
+
+> **Local pass doesn't count, a successful call doesn't count, no confirmation means it's not "done." Three tiers, never merged. Wire the trigger word into your rules file, let the agent run the whole thing, and you just review the final report.**
