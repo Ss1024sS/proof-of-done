@@ -81,6 +81,7 @@
 - `grep` out every occurrence and interrogate each: "could this miss / cross-contaminate / get the boundary wrong?"
 - Focus on "after I changed dimension A, did *every* place that joins on the old dimension keep up?"
 **Origin**: the independent-review AI dropped its connection mid-run with no structured result. Switched to hand-grepping every "demand↔order" touchpoint for a deep review, which caught 2 missing isolation conditions (receipt deduction, stale-data cleanup) — both real cross-dimension data-bleed bugs.
+**Recovery recipe (config drift)**: when the second AI's CLI fails on a config it didn't write (e.g. a desktop app wrote config values the older CLI can't parse), don't edit the user's config — run the CLI against an isolated home (`CODEX_HOME=/tmp/<x>` with a minimal config + a *symlink* to the real auth file). Review proceeds; user config untouched.
 
 ### R15 — Don't disturb real users during testing
 **Trap**: outbound side effects triggered by a test call (mass-emailing real customers / suppliers, pushing a real webhook, mutating a real external system) become incidents — a bunch of real people get baffling test messages.
@@ -89,3 +90,28 @@
 - **Don't change the normal logic of production scheduled jobs** — they should keep sending to real users as usual
 - Verify "the logic ran correctly + the right flags got set"; verify delivery itself against a controlled test recipient
 **Origin**: a full data-sync would email "order change" notices to real suppliers. During testing, monkeypatched the send function to a no-op (this process only) — verified the sync logic without spamming real suppliers, while the daily scheduled sync kept emailing them as normal.
+
+### R16 — Async reload: don't race the verification in the same command
+**Trap**: `openresty -s reload` / `nginx -s reload` / many daemon reloads return **before** workers finish swapping config. Chaining `reload && curl <assert>` in one command can hit the *old* config and "fail" (or worse, "pass" on stale state).
+**General rule**: reload and verification are **two separate commands**; insert an explicit wait or poll (`sleep` + retry) between them. Any "apply config → assert behavior" pair must assume the apply is asynchronous unless proven otherwise.
+**Origin**: an OpenResty route change "didn't take effect" during verification — it had, but the assertion ran in the same compound command before the graceful reload finished.
+
+### R17 — Programmatic uploads / writes must set MIME explicitly
+**Trap**: `curl -F` and most scripted multipart clients send `application/octet-stream` unless told otherwise. Frontends that branch on `content_type` then silently treat the file as "unknown type" — the upload "succeeded" but the feature is broken. Browser form uploads auto-set the type, so manual testing never reproduces it.
+**General rule**: every scripted upload sets an explicit MIME (`-F "f=@x.png;type=image/png"`); after upload, verify the **stored** content type, not the HTTP 200.
+**Origin**: a screenshot uploaded via `curl -F` stored as `octet-stream`; the UI's type-based preview logic showed nothing. Browser uploads worked, masking the bug from manual tests.
+
+### R18 — Assert rendered HTML via DOM parsing, not raw-text grep (attribute case/形态 is framework-owned)
+**Trap**: SSR frameworks serialize attributes in whatever case/form their internals use — Next.js App Router emits `hrefLang` (camelCase), React may emit boolean attributes differently, etc. A case-sensitive `grep 'hreflang='` over raw HTML returns nothing and you "conclude" the feature didn't ship — a false negative on a working fix (or you ship a "fix" for a non-bug).
+**General rule**: assertions about rendered HTML semantics go through a **DOM parser** (`document.querySelectorAll('link[rel=alternate][hreflang]')` in a headless browser, or an HTML parser lib) — that's also what crawlers parse. Raw-text grep is only for "is this byte-string present," never for "does this semantic attribute exist." If you must grep, `grep -i`.
+**Origin**: post-deploy verification of hreflang tags — lowercase grep found zero matches on a page that had all 6 alternates as `hrefLang=`. The DOM query in a real browser returned 6, matching what Googlebot sees.
+
+### R19 — Cross-OS file pushes carry hidden junk: strip metadata sidecars at the source
+**Trap**: pushing files from macOS to a Linux server via tar/zip silently includes AppleDouble sidecars (`._foo`, `.DS_Store`). They land in the server's working tree, show up in `git status`, and can get swept into the next commit (or worse, get served).
+**General rule**: on macOS set `COPYFILE_DISABLE=1` before tar, or `tar --no-xattrs`, or clean after landing (`find . -name '._*' -delete`) — and **check `git status` on the target after any cross-OS push**, before committing anything.
+**Origin**: a tar-over-ssh deploy from a Mac dropped `._app`, `._next.config.ts` etc. into a production repo; caught in `git status` right after the commit (the commit itself was clean only because files were added by explicit path).
+
+### R20 — In batch endpoint assertions, classify failures before believing them
+**Trap**: a batch URL sweep (`xargs -P10 curl`) reports failures that aren't the target's fault: (a) **uniform 100% failure** usually means the harness is broken (e.g. BSD `sed` not supporting `\?` left `<loc>` tags on every URL → all curls got invalid input → all "000"); (b) **sporadic failures under parallelism** through a CDN/tunnel are transport timeouts, not app errors.
+**General rule**: triage batch failures by shape before reporting: 100% fail → first re-verify the harness on one known-good case by hand; sporadic fail → retry the failures **serially with a longer timeout**; only failures that reproduce on serial retry count as real. Never report first-pass batch numbers as final.
+**Origin**: one session hit both shapes back-to-back: 98/98 "000" from an unstripped XML tag (harness bug), then 5/98 "000" under `-P10` that all turned 200 on serial retry (transport). The real result was 98/98 healthy.
