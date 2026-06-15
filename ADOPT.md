@@ -58,11 +58,16 @@ Paste the contents of [templates/trigger-rule.md](templates/trigger-rule.md) in.
 
 ---
 
-## Step 4 — Keep distilling lessons
+## Step 4 — Keep distilling lessons (and sync them the right way)
 
-Every time you catch a new "agent-reports-done-but-wrong" pattern → immediately append a new law to `IRON-LAWS.md` (`R16`, `R17`, …).
+Every time you catch a new "agent-reports-done-but-wrong" pattern → append a new law. But **where** it goes is what keeps every project consistent instead of forking:
 
-This is the real meaning of "long-term": **it's not a frozen checklist, it's a knowledge base that grows as you hit new traps.** R1–R15 grew exactly this way.
+- **Generic** trap (would bite any stack) → append `R{n}` to the **base** `IRON-LAWS.md`, bump `VERSION`, push. Every project picks it up on its next sync.
+- **Project-specific** trap (your stack / ERP / data shape) → put it in **your overlay** only.
+
+And **before** each run, pull the base so you're on the latest laws; pin your overlay to the base `VERSION` you synced. The full loop is in **[SYNC.md](SYNC.md)**.
+
+This is the real meaning of "long-term": **it's not a frozen checklist, it's a knowledge base that grows as you hit new traps** — one shared upstream, many project overlays. R1–R24 grew exactly this way.
 
 ---
 

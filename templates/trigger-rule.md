@@ -29,6 +29,13 @@ Iron laws (front and center, obey every time):
 
 8 phases: 0 pre-flight → 1 logic → 2 data accuracy → 3 same-pattern sweep →
           4 independent review → 5 prod E2E → 6 human simulation → 7 sign-off
+
+Stay in sync (so every session shares the same updated methodology):
+- BEFORE the run: pull the base methodology so you're on the latest laws; pin
+  your overlay to the base VERSION you synced.
+- AFTER the run: for each new "done-but-wrong" trap, classify it — GENERIC
+  (any stack) → append a new R{n} to the base IRON-LAWS + bump VERSION + push;
+  PROJECT-SPECIFIC → keep it in this project's overlay only. See SYNC.md.
 ```
 
 > Tip: keep the trigger word in your team's working language. A non-English example: 「启动长期测试」/「跑长期测试」/「走测试流程」.

@@ -5,7 +5,7 @@
 
 **[English](#english)** · **[中文](#中文)** — 正文文档（PROTOCOL / IRON-LAWS / ADOPT）为英文 / docs are in English.
 
-[The Protocol](PROTOCOL.md) · [Iron Laws](IRON-LAWS.md) · [Adopt it](ADOPT.md) · [Templates](templates/)
+[The Protocol](PROTOCOL.md) · [Iron Laws](IRON-LAWS.md) · [Adopt it](ADOPT.md) · [Sync & iterate](SYNC.md) · [Templates](templates/) · version [`2026.06.15`](VERSION) (R1–R24)
 
 ---
 
@@ -62,7 +62,16 @@ Full details: **[PROTOCOL.md](PROTOCOL.md)**.
 
 ### Why trust this
 
-Every rule here is the scar tissue of a real failure — an agent that reported "done" and was wrong. The **[Iron Laws](IRON-LAWS.md)** (R1–R15) each carry the story of the bug that created them: an email that said `sent` but never arrived; a permission migration that fixed one file and missed five; a unique index that got dropped but never rebuilt (because idempotency was based on a stale cache); a "second AI" that dropped its connection mid-review.
+Every rule here is the scar tissue of a real failure — an agent that reported "done" and was wrong. The **[Iron Laws](IRON-LAWS.md)** (R1–R24) each carry the story of the bug that created them: an email that said `sent` but never arrived; a permission migration that fixed one file and missed five; a unique index that got dropped but never rebuilt (because idempotency was based on a stale cache); a "second AI" that dropped its connection mid-review; a `Query(None)` default that was a truthy object in direct-call tests; a `?back=` param that was an open redirect.
+
+### One methodology everywhere, best-fit anywhere
+
+The base in this repo is the single upstream; each project keeps a thin **overlay**
+(its stack-mapping table + its own laws) pinned to a base [`VERSION`](VERSION).
+**[SYNC.md](SYNC.md)** defines the loop that keeps them consistent: pull the base
+before a run; after a run, send *generic* scars upstream (a new iron law here) and
+*project-specific* scars to the overlay. That is how every session shares the same
+updated methodology while each project's test stays tuned to itself.
 
 ### Adopt it in your project
 
@@ -127,7 +136,14 @@ AI 协作开发最大的失败模式：**把「代码写完 + 编译过 + 单测
 
 ### 为什么可信
 
-这里每一条规则都是一次真实翻车的疤 —— AI 报了「完成」，但实际是错的。**[铁律](IRON-LAWS.md)** R1–R15 每条都带「背后那个 bug 的故事」：一封说 `sent` 却没到的邮件；一次只改一个文件、漏了同模块五处的权限迁移；一个被 DROP 了却没重建的唯一索引（幂等判断用了过期缓存）；一个审查到一半掉线的「第二个 AI」。
+这里每一条规则都是一次真实翻车的疤 —— AI 报了「完成」，但实际是错的。**[铁律](IRON-LAWS.md)** R1–R24 每条都带「背后那个 bug 的故事」：一封说 `sent` 却没到的邮件；一次只改一个文件、漏了同模块五处的权限迁移；一个被 DROP 了却没重建的唯一索引（幂等判断用了过期缓存）；一个审查到一半掉线的「第二个 AI」；一个在直调单测里是 truthy 对象的 `Query(None)` 默认值；一个成了开放重定向的 `?back=` 参数。
+
+### 一份方法论，处处一致，又各自最优
+
+本仓库的基线是唯一上游；每个项目保留一份很薄的**特化层**（它的工具映射表 + 它自己的铁律），
+钉住某个基线 [`VERSION`](VERSION)。**[SYNC.md](SYNC.md)** 定义了让两者保持一致的环：跑测前先拉基线；
+跑完后，把*通用*的疤送回上游（在这里加一条新铁律），把*项目特定*的疤留在特化层。这样每个 session
+都共享同一份更新后的方法论，而每个项目的长测又各自贴合自己。
 
 ### 落地到你的项目
 
