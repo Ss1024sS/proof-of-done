@@ -22,8 +22,10 @@ Audience: any AI-assisted project (Claude Code / Cursor / Cline / Aider / Codex 
 
 **Goal**: confirm the change actually reached the environment you're about to test — you're not testing your local working tree.
 
+- [ ] The production **build** passes — not just the type-check. Run the framework build (`next build` / `vite build` / AOT), which exercises prerender / static-export / tree-shake paths `tsc`·`mypy` never run (see [R25](IRON-LAWS.md))
 - [ ] Change synced to the target environment (prod / staging / demo)
 - [ ] Service process restarted (per your deploy method: container / process manager / PaaS)
+- [ ] **New artifact actually live** — hashed chunk name changed / a code marker present in the running image; a failed build + `--force-recreate` silently re-runs the old image and still serves 200 (see [R25](IRON-LAWS.md))
 - [ ] Reverse proxy / load balancer reloaded (if routes or static assets changed)
 - [ ] Code freshness: local `HEAD` == the version actually running on target (compare by hash / md5, not by gut feeling)
 - [ ] DB schema change applied (migration / ALTER) **and confirmed to have taken effect** — query the actual schema, don't just trust "the script ran without error" (see [R12](IRON-LAWS.md))
