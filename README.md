@@ -5,7 +5,7 @@
 
 **[English](#english)** · **[中文](#中文)** — 正文文档（PROTOCOL / IRON-LAWS / ADOPT）为英文 / docs are in English.
 
-[The Protocol](PROTOCOL.md) · [Iron Laws](IRON-LAWS.md) · [Adopt it](ADOPT.md) · [Sync & iterate](SYNC.md) · [Templates](templates/) · version [`2026.06.15.1`](VERSION) (R1–R25)
+[The Protocol](PROTOCOL.md) · [Iron Laws](IRON-LAWS.md) · [Adopt it](ADOPT.md) · [Sync & iterate](SYNC.md) · [Templates](templates/) · version [`2026.06.15.2`](VERSION) (R1–R26)
 
 ---
 
